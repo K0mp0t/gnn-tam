@@ -2,7 +2,7 @@
 
 This repository is the official implementation of model architectures from the paper [Graph Neural Networks with Trainable Adjacency Matrices for Fault Diagnosis on Multivariate Sensor Data](https://doi.org/10.1109/ACCESS.2024.3481331).
 
-## Training and inference examples
+## Training and evaluation examples
 
 [FDDBenchmark](https://github.com/AIRI-Institute/fddbenchmark) was used in our experiments.
 
@@ -12,7 +12,7 @@ Training step:
 python train.py
 ```
 
-Inference step:
+Evaluation step:
 
 ```
 python evaluate.py
