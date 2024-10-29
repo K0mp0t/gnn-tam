@@ -33,7 +33,7 @@ class GNN_TAM(nn.Module):
             n_classes: int,
             n_gnn: int = 1,
             gsl_type: str = 'relu',
-            n_hidden: int = 512,
+            n_hidden: int = 1024,
             alpha: float = 0.1,
             k: int = None,
             device: str = 'cpu'
