@@ -72,8 +72,8 @@ def train():
             loss = F.cross_entropy(logits, train_label, weight=weight.to(device))
             optimizer.zero_grad()
             loss.backward()
-        optimizer.step()
-        av_loss.append(loss.item())
+            optimizer.step()
+            av_loss.append(loss.item())
         print(f'Epoch: {e+1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss)/len(av_loss):.4f}')
 
     torch.save(model, 'saved_models/' + args.name + str(args.n_gnn) + '.pt')
