@@ -4,7 +4,7 @@ This repository is the official implementation of model architectures from the p
 
 ## Training and inference examples
 
-[FDDBenchmark](https://github.com/AIRI-Institute/fddbenchmark) was used in experiments.
+[FDDBenchmark](https://github.com/AIRI-Institute/fddbenchmark) was used in our experiments.
 
 Training step:
 
