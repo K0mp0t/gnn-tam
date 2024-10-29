@@ -12,6 +12,8 @@ Please cite our paper as follows:
   author={Kovalenko, Aleksandr and Pozdnyakov, Vitaliy and Makarov, Ilya},
   journal={IEEE Access},
   year={2024},
+  volume={12},
+  pages={152860-152872},
   publisher={IEEE}
 }
 ```
