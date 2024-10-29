@@ -62,8 +62,8 @@ def train():
     optimizer = Adam(model.parameters(), lr=0.001)
     weight = torch.ones(n_classes) * 0.5
     weight[1:] /= (n_classes - 1)
-    av_loss = []
     for e in trange(args.n_epochs, desc="Epochs ..."):
+        av_loss = []
         for train_ts, train_index, train_label in tqdm(train_dl):
             ts = torch.FloatTensor(train_ts).to(device)
             ts = torch.transpose(ts, 1, 2)
