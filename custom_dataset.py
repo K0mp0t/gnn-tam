@@ -21,6 +21,12 @@ class CustomDataset(Dataset):
             self.dataset_path = os.path.join('./data', 'mhealth_dataset')
             self.df, self.label = self._prepare_mhealth()
             self.df, self.label = self._mask_ton_iot()
+        elif dataset == 'pamap2':
+            self.dataset_path = os.path.join('./data', 'pamap2_dataset', 'Protocol')
+            self.df, self.label = self._prepare_pamap2()
+            self.df, self.label = self._mask_ton_iot()
+        else:
+            raise NotImplementedError(f'{dataset} is not supported')
 
         scaler = StandardScaler()
         self.df.iloc[:] = scaler.fit_transform(self.df)
@@ -77,32 +83,33 @@ class CustomDataset(Dataset):
         else:
             raise NotImplemented(f'{self.mode} is not supported')
 
+    @staticmethod
+    def __slice_df_by_label_changepoints(df):
+        changepoint_indices = np.where(df.label[:-1].to_numpy() - df.label[1:].to_numpy())[0] + 1
+        slices = list()
+
+        left = 0
+
+        for idx in changepoint_indices:
+            slices.append(df.iloc[left: idx])
+            left = idx
+
+        slices.append(df.iloc[left:])
+
+        return slices
+    @staticmethod
+    def __merge_slices_by_label(slices):
+        grouped_slices = dict()
+        for s in slices:
+            slice_label = s.iloc[0].label
+            if slice_label not in grouped_slices:
+                grouped_slices[slice_label] = [s]
+            else:
+                grouped_slices[slice_label].append(s)
+
+        return [pd.concat(group) for group in list(grouped_slices.values())]
+
     def _prepare_mhealth(self):
-        def slice_df_by_label_changepoints(df):
-            changepoint_indices = np.where(df.label[:-1].to_numpy() - df.label[1:].to_numpy())[0] + 1
-            slices = list()
-
-            left = 0
-
-            for idx in changepoint_indices:
-                slices.append(df.iloc[left: idx])
-                left = idx
-
-            slices.append(df.iloc[left:])
-
-            return slices
-
-        def merge_slices_by_label(slices):
-            grouped_slices = dict()
-            for s in slices:
-                slice_label = s.iloc[0].label
-                if slice_label not in grouped_slices:
-                    grouped_slices[slice_label] = [s]
-                else:
-                    grouped_slices[slice_label].append(s)
-
-            return [pd.concat(group) for group in list(grouped_slices.values())]
-
         dataset_dfs = list()
 
         for fn in os.listdir(self.dataset_path):
@@ -123,12 +130,12 @@ class CustomDataset(Dataset):
         dataset_slices = list()
 
         for df in dataset_dfs:
-            slices = slice_df_by_label_changepoints(df)
-            slices = merge_slices_by_label(slices)
+            slices = CustomDataset.__slice_df_by_label_changepoints(df)
+            slices = CustomDataset.__merge_slices_by_label(slices)
 
             dataset_slices.extend(slices)
 
-        dataset_slices = merge_slices_by_label(dataset_slices)
+        dataset_slices = CustomDataset.__merge_slices_by_label(dataset_slices)
         assert all([s.label.nunique() == 1 for s in dataset_slices])
 
         # 0th class has to be downsampled, others are ok
@@ -146,6 +153,51 @@ class CustomDataset(Dataset):
         assert dataset_df.shape[0] == labels.shape[0]
 
         return dataset_df.astype('float32'), labels
+
+    def _prepare_pamap2(self):
+        dataset_dfs = list()
+
+        for fn in os.listdir(self.dataset_path):
+            with open(os.path.join(self.dataset_path, fn)) as f:
+                data = f.readlines()
+
+            data = list(map(lambda x: x.strip().split(), data))
+            data = list(map(lambda l: list(map(float, l)), data))
+
+            data_df = pd.DataFrame(data, columns=['timestamp', 'label'] + [f'feature_{i}' for i in range(len(data[0]) - 2)])
+            data_df['subject'] = fn.split('.')[0]
+
+            dataset_dfs.append(data_df)
+
+        dataset_slices = list()
+
+        for df in dataset_dfs:
+            slices = CustomDataset.__slice_df_by_label_changepoints(df)
+            slices = CustomDataset.__merge_slices_by_label(slices)
+
+            dataset_slices.extend(slices)
+
+        dataset_slices = CustomDataset.__merge_slices_by_label(dataset_slices)
+        assert all([s.label.nunique() == 1 for s in dataset_slices])
+
+        # 0th class has to be downsampled, others are ok
+        downsampling_number = sorted([s.shape[0] for s in dataset_slices])[-2]
+        zero_class_slice_idx = [s.iloc[0].label for s in dataset_slices].index(0)
+
+        dataset_slices[zero_class_slice_idx] = dataset_slices[zero_class_slice_idx].groupby('subject').head(
+            int(downsampling_number / dataset_slices[zero_class_slice_idx].subject.nunique()))
+
+        dataset_df = pd.concat(dataset_slices)
+        dataset_df = dataset_df.loc[pd.notna(dataset_df).all(axis=1)]
+        labels = dataset_df.label
+        labels_mapping = {l: i for i, l in enumerate(sorted(labels.unique()))}
+        labels = labels.map(labels_mapping)
+        dataset_df = dataset_df.drop(columns=['label', 'subject', 'feature_0', 'timestamp'])
+
+        assert labels.nunique() == 13
+        assert dataset_df.shape[0] == labels.shape[0]
+
+        return dataset_df.astype('float32'), labels.astype('int32')
 
     def _prepare_window_indices(self):
         self.indices = []

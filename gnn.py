@@ -96,5 +96,26 @@ class GNN_TAM(nn.Module):
 
         return output
 
+    def forward_disabled_sensor(self, X, sensor_idx):
+        X = X.to(self.device)
+        # X[:, sensor_idx] = torch.rand(X.shape[0], X.shape[2])
+        for i in range(self.n_gnn):
+            self.adj[i] = self.gsl[i](self.idx)
+            adj = self.adj[i] * self.z
+            adj[sensor_idx] = 0
+            adj[:, sensor_idx] = 0
+            self.h[i] = self.conv1[i](adj, X).relu()
+            self.h[i] = self.bnorm1[i](self.h[i])
+            self.skip[i], _ = torch.min(self.h[i], dim=1)
+            self.h[i] = self.conv2[i](adj, self.h[i]).relu()
+            self.h[i] = self.bnorm2[i](self.h[i])
+            self.h[i], _ = torch.min(self.h[i], dim=1)
+            self.h[i] = self.h[i] + self.skip[i]
+
+        h = torch.cat(self.h, 1)
+        output = self.fc(h)
+
+        return output
+
     def get_adj(self):
         return self.adj

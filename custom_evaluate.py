@@ -2,13 +2,12 @@ import numpy as np
 import pandas as pd
 from fddbenchmark import FDDEvaluator
 from fddbenchmark.evaluator import cluster_acc
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 from sklearn.metrics.cluster import normalized_mutual_info_score, adjusted_rand_score
-from scipy.optimize import linear_sum_assignment as linear_assignment
 
 
 class CustomEvaluator(FDDEvaluator):
-    def evaluate(self, labels, pred):
+    def evaluate_fdd(self, labels, pred):
         # labels should be non-negative integer values, normal is 0
         assert np.all(np.sort(np.unique(labels)) == np.arange(labels.max() + 1))
         # confustion matrix: rows are truth classes, columns are predicted classes
@@ -17,20 +16,6 @@ class CustomEvaluator(FDDEvaluator):
         metrics['confusion_matrix'] = fdd_cm
         metrics['detection']['TPR'] = fdd_cm[1:, 1:].sum() / fdd_cm[1:, :].sum()
         metrics['detection']['FPR'] = fdd_cm[0, 1:].sum() / fdd_cm[0, :].sum()
-
-        # real_change_point = labels[labels != 0].reset_index().groupby(['run_id'])['sample'].min()
-        # pred_change_point = pred[pred != 0].reset_index().set_index(['run_id'])['sample']
-        # pred_real_change_point = pd.merge(
-        #     pred_change_point,
-        #     real_change_point,
-        #     how='left',
-        #     on='run_id',
-        #     suffixes=('', '_real')
-        # )
-        # valid_change_point = pred_real_change_point['sample_real'] <= pred_real_change_point['sample']
-        # pred_change_point = pred_change_point[valid_change_point].groupby(['run_id']).min()
-        # detection_delay = (pred_change_point - real_change_point) * self.step_size
-        # metrics['detection']['ADD'] = detection_delay.mean()
 
         correct_diagnosis = fdd_cm[1:, 1:].diagonal()
         tp = fdd_cm[1:, 1:].sum()
@@ -46,7 +31,7 @@ class CustomEvaluator(FDDEvaluator):
         return metrics
 
     def str_metrics(self, labels, pred):
-        metrics = self.evaluate(labels, pred)
+        metrics = self.evaluate_fdd(labels, pred)
         str_metrics = []
         str_metrics.append('FDD metrics\n-----------------')
 
@@ -65,3 +50,6 @@ class CustomEvaluator(FDDEvaluator):
         str_metrics.append('Normalized Mutual Information (NMI): {:.4f}'.format(metrics['clustering']['NMI']))
         str_metrics.append('Unsupervised Clustering Accuracy (ACC): {:.4f}'.format(metrics['clustering']['ACC']))
         return '\n'.join(str_metrics)
+
+    def evaluate_classification(self, labels, pred):
+        return {'accuracy': accuracy_score(labels, pred), 'f1_score': f1_score(labels, pred, average='weighted')}
