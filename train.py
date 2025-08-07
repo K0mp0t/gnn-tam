@@ -1,3 +1,4 @@
+import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import os
 import torch
@@ -8,6 +9,7 @@ from tqdm import tqdm, trange
 import argparse
 
 from custom_dataset import CustomDataset
+from custom_evaluate import CustomEvaluator
 from fddbenchmark import FDDDataset, FDDDataloader
 from gnn import GNN_TAM
 
@@ -34,6 +36,7 @@ def train():
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     device = args.device
     print('Using device:', device)
+    print('Dataset:', args.dataset)
     # Data preparation:
     if args.dataset in ['reinartz_tep', 'reith_tep', 'small_tep']:
         dataset = FDDDataset(name=args.dataset)
@@ -51,13 +54,29 @@ def train():
             batch_size=args.batch_size,
             shuffle=True
         )
+
+        test_dl = FDDDataloader(
+            dataframe=dataset.df,
+            label=dataset.label,
+            mask=dataset.test_mask,
+            window_size=args.window_size,
+            step_size=args.step_size,
+            use_minibatches=True,
+            batch_size=args.batch_size,
+            shuffle=True
+        )
     elif args.dataset in ['IoT_Modbus', 'IoT_Weather', 'mhealth', 'pamap2']:
         dataset = CustomDataset(dataset=args.dataset, window_size=args.window_size, step_size=args.step_size)
-        train_dl = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+        train_dl = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=8)
+
+        test_dataset = CustomDataset(dataset=args.dataset, window_size=args.window_size, step_size=args.step_size, mode='test')
+        test_dl = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=8)
     else:
         raise NotImplemented(f'{args.dataset} is not supported')
     n_nodes = dataset.df.shape[1]
     n_classes = len(set(dataset.label))
+
+    evaluator = CustomEvaluator(step_size=args.step_size)
     # Model creation:
     model = GNN_TAM(n_nodes=n_nodes,
                     window_size=args.window_size,
@@ -70,25 +89,73 @@ def train():
                     device=device)
     model.to(device)
     # Training:
-    model.train()
     optimizer = Adam(model.parameters(), lr=0.001)
     weight = torch.ones(n_classes) * 0.5
     weight[1:] /= (n_classes - 1)
-    outer_bar = trange(args.n_epochs, desc="Epoch: 0, ...", position=0)
+    outer_bar = trange(args.n_epochs, desc="Epoch: 0, ...")
     for e in outer_bar:
         av_loss = []
-        for train_ts, train_index, train_label in tqdm(train_dl, position=1, leave=False):
-            ts = torch.FloatTensor(train_ts).to(device)
+        model.train()
+        for train_ts, train_index, train_label in train_dl:
+            ts = torch.FloatTensor(train_ts).to(device, non_blocking=True)
             ts = torch.transpose(ts, 1, 2)
-            train_label = torch.LongTensor(train_label).to(device)
+            train_label = torch.LongTensor(train_label).to(device, non_blocking=True)
             logits = model(ts)
-            loss = F.cross_entropy(logits, train_label, weight=weight.to(device))
+            loss = F.cross_entropy(logits, train_label)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             av_loss.append(loss.item())
-        outer_bar.update(1)
-        outer_bar.set_description(f'Epoch: {e+1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss)/len(av_loss):.4f}')
+
+        if (e + 1) % 10 == 0:
+            model.eval()
+            preds = []
+            test_labels = []
+            for test_ts, test_index, test_label in test_dl:
+                ts = torch.FloatTensor(test_ts).to(device)
+                ts = torch.transpose(ts, 1, 2)
+                with torch.no_grad():
+                    logits = model(ts)
+                pred = logits.argmax(axis=1).cpu().numpy()
+                if isinstance(test_index, torch.Tensor):
+                    test_index = test_index.numpy()
+                preds.append(pd.Series(pred, index=test_index))
+                test_labels.append(pd.Series(test_label, index=test_index))
+            pred = pd.concat(preds)
+            test_label = pd.concat(test_labels)
+
+            evaluator = CustomEvaluator(step_size=args.step_size)
+            # evaluator = FDDEvaluator(step_size=1)
+            # evaluator.print_metrics(test_label, pred)
+            metrics = evaluator.evaluate_classification(test_label, pred)
+
+            print(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}, {metrics}')
+
+        # outer_bar.update(1)
+        outer_bar.set_description(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}')
+
+    model.eval()
+    preds = []
+    test_labels = []
+    for test_ts, test_index, test_label in test_dl:
+        ts = torch.FloatTensor(test_ts).to(device)
+        ts = torch.transpose(ts, 1, 2)
+        with torch.no_grad():
+            logits = model(ts)
+        pred = logits.argmax(axis=1).cpu().numpy()
+        if isinstance(test_index, torch.Tensor):
+            test_index = test_index.numpy()
+        preds.append(pd.Series(pred, index=test_index))
+        test_labels.append(pd.Series(test_label, index=test_index))
+    pred = pd.concat(preds)
+    test_label = pd.concat(test_labels)
+
+    evaluator = CustomEvaluator(step_size=args.step_size)
+    # evaluator = FDDEvaluator(step_size=1)
+    # evaluator.print_metrics(test_label, pred)
+    metrics = evaluator.evaluate_classification(test_label, pred)
+
+    print(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}, {metrics}')
 
     torch.save(model, 'saved_models/' + args.name + str(args.n_gnn) + 'x' + str(args.n_hidden) + '_' + args.gsl_type + '_' + args.dataset + '.pt')
 

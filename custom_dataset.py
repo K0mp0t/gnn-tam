@@ -139,11 +139,11 @@ class CustomDataset(Dataset):
         assert all([s.label.nunique() == 1 for s in dataset_slices])
 
         # 0th class has to be downsampled, others are ok
-        downsampling_number = sorted([s.shape[0] for s in dataset_slices])[-2]
-        zero_class_slice_idx = [s.iloc[0].label for s in dataset_slices].index(0)
+        # downsampling_number = sorted([s.shape[0] for s in dataset_slices])[-2]
+        # zero_class_slice_idx = [s.iloc[0].label for s in dataset_slices].index(0)
 
-        dataset_slices[zero_class_slice_idx] = dataset_slices[zero_class_slice_idx].groupby('subject').head(
-            int(downsampling_number / dataset_slices[zero_class_slice_idx].subject.nunique()))
+        # dataset_slices[zero_class_slice_idx] = dataset_slices[zero_class_slice_idx].groupby('subject').head(
+        #     int(downsampling_number / dataset_slices[zero_class_slice_idx].subject.nunique()))
 
         dataset_df = pd.concat(dataset_slices)
         labels = dataset_df.label
@@ -181,11 +181,11 @@ class CustomDataset(Dataset):
         assert all([s.label.nunique() == 1 for s in dataset_slices])
 
         # 0th class has to be downsampled, others are ok
-        downsampling_number = sorted([s.shape[0] for s in dataset_slices])[-2]
-        zero_class_slice_idx = [s.iloc[0].label for s in dataset_slices].index(0)
+        # downsampling_number = sorted([s.shape[0] for s in dataset_slices])[-2]
+        # zero_class_slice_idx = [s.iloc[0].label for s in dataset_slices].index(0)
 
-        dataset_slices[zero_class_slice_idx] = dataset_slices[zero_class_slice_idx].groupby('subject').head(
-            int(downsampling_number / dataset_slices[zero_class_slice_idx].subject.nunique()))
+        # dataset_slices[zero_class_slice_idx] = dataset_slices[zero_class_slice_idx].groupby('subject').head(
+        #     int(downsampling_number / dataset_slices[zero_class_slice_idx].subject.nunique()))
 
         dataset_df = pd.concat(dataset_slices)
         dataset_df = dataset_df.loc[pd.notna(dataset_df).all(axis=1)]

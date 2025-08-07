@@ -52,4 +52,6 @@ class CustomEvaluator(FDDEvaluator):
         return '\n'.join(str_metrics)
 
     def evaluate_classification(self, labels, pred):
-        return {'accuracy': accuracy_score(labels, pred), 'f1_score': f1_score(labels, pred, average='weighted')}
+        return {'accuracy': round(accuracy_score(labels, pred), 4),
+                'f1_score_weighted': round(f1_score(labels, pred, average='weighted'), 4),
+                'f1_score_macro': round(f1_score(labels, pred, average='macro'), 4)}
