@@ -3,12 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# A = ReLu(W)
 class Graph_ReLu_W(nn.Module):
-    def __init__(self, n_nodes, k, device):
+    def __init__(self, n_nodes, k, device='cpu'):
         super(Graph_ReLu_W, self).__init__()
         self.num_nodes = n_nodes
         self.k = k
+        self.device = device
         self.A = nn.Parameter(torch.randn(n_nodes, n_nodes).to(device),
                               requires_grad=True).to(device)
 
@@ -29,6 +29,7 @@ class Graph_Directed_A(nn.Module):
         super(Graph_Directed_A, self).__init__()
         self.alpha = alpha
         self.k = k
+        self.device = device
         self.e1 = nn.Embedding(n_nodes, window_size)
         self.e2 = nn.Embedding(n_nodes, window_size)
         self.l1 = nn.Linear(window_size, window_size)
@@ -50,7 +51,7 @@ class Graph_Directed_A(nn.Module):
 # A for Uni-directed graphs:
 class Graph_Uni_Directed_A(nn.Module):
     def __init__(self, n_nodes, window_size, alpha, k, device):
-        super(Graph_Directed_A, self).__init__()
+        super(Graph_Uni_Directed_A, self).__init__()
         self.alpha = alpha
         self.k = k
         self.device = device
@@ -76,7 +77,7 @@ class Graph_Uni_Directed_A(nn.Module):
 # A for Undirected graphs:
 class Graph_Undirected_A(nn.Module):
     def __init__(self, n_nodes, window_size, alpha, k, device):
-        super(Graph_Directed_A, self).__init__()
+        super(Graph_Undirected_A, self).__init__()
         self.alpha = alpha
         self.k = k
         self.device = device
