@@ -4,6 +4,4 @@ __pycache__
 .virtual_documents/
 .vscode/
 saved_models/
-rknn/
-ijcai25_demo/
 data/

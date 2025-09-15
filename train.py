@@ -1,16 +1,15 @@
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-import os
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
-from tqdm import tqdm, trange
+from tqdm import trange
 import argparse
 
 from custom_dataset import CustomDataset
 from custom_evaluate import CustomEvaluator
-from fddbenchmark import FDDDataset, FDDDataloader
+from fddbenchmark import FDDDataset, FDDDataloader, FDDEvaluator
 from gnn import GNN_TAM
 
 
@@ -38,7 +37,7 @@ def train():
     print('Using device:', device)
     print('Dataset:', args.dataset)
     # Data preparation:
-    if args.dataset in ['reinartz_tep', 'reith_tep', 'small_tep']:
+    if args.dataset in ['reinartz_tep', 'rieth_tep', 'small_tep']:
         dataset = FDDDataset(name=args.dataset)
         scaler = StandardScaler()
         scaler.fit(dataset.df.loc[dataset.train_mask])
@@ -76,7 +75,6 @@ def train():
     n_nodes = dataset.df.shape[1]
     n_classes = len(set(dataset.label))
 
-    evaluator = CustomEvaluator(step_size=args.step_size)
     # Model creation:
     model = GNN_TAM(n_nodes=n_nodes,
                     window_size=args.window_size,
@@ -107,29 +105,28 @@ def train():
             optimizer.step()
             av_loss.append(loss.item())
 
-        if (e + 1) % 10 == 0:
-            model.eval()
-            preds = []
-            test_labels = []
-            for test_ts, test_index, test_label in test_dl:
-                ts = torch.FloatTensor(test_ts).to(device)
-                ts = torch.transpose(ts, 1, 2)
-                with torch.no_grad():
-                    logits = model(ts)
-                pred = logits.argmax(axis=1).cpu().numpy()
-                if isinstance(test_index, torch.Tensor):
-                    test_index = test_index.numpy()
-                preds.append(pd.Series(pred, index=test_index))
-                test_labels.append(pd.Series(test_label, index=test_index))
-            pred = pd.concat(preds)
-            test_label = pd.concat(test_labels)
-
-            evaluator = CustomEvaluator(step_size=args.step_size)
-            # evaluator = FDDEvaluator(step_size=1)
-            # evaluator.print_metrics(test_label, pred)
-            metrics = evaluator.evaluate_classification(test_label, pred)
-
-            print(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}, {metrics}')
+        # model.eval()
+        # preds = []
+        # test_labels = []
+        # for test_ts, test_index, test_label in test_dl:
+        #     ts = torch.FloatTensor(test_ts).to(device)
+        #     ts = torch.transpose(ts, 1, 2)
+        #     with torch.no_grad():
+        #         logits = model(ts)
+        #     pred = logits.argmax(axis=1).cpu().numpy()
+        #     if isinstance(test_index, torch.Tensor):
+        #         test_index = test_index.numpy()
+        #     preds.append(pd.Series(pred, index=test_index))
+        #     test_labels.append(pd.Series(test_label, index=test_index))
+        # pred = pd.concat(preds)
+        # test_label = pd.concat(test_labels)
+        #
+        # evaluator = CustomEvaluator(step_size=args.step_size)
+        # # evaluator = FDDEvaluator(step_size=1)
+        # # evaluator.print_metrics(test_label, pred)
+        # metrics = evaluator.evaluate_classification(test_label, pred)
+        #
+        # print(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}, {metrics}')
 
         # outer_bar.update(1)
         outer_bar.set_description(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}')
@@ -150,14 +147,14 @@ def train():
     pred = pd.concat(preds)
     test_label = pd.concat(test_labels)
 
-    evaluator = CustomEvaluator(step_size=args.step_size)
-    # evaluator = FDDEvaluator(step_size=1)
-    # evaluator.print_metrics(test_label, pred)
-    metrics = evaluator.evaluate_classification(test_label, pred)
+    # evaluator = CustomEvaluator(step_size=args.step_size)
+    evaluator = FDDEvaluator(step_size=1)
+    evaluator.print_metrics(test_label, pred)
+    # metrics = evaluator.evaluate_classification(test_label, pred)
 
-    print(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}, {metrics}')
+    print(f'Epoch: {e + 1:2d}/{args.n_epochs}, average CE loss: {sum(av_loss) / len(av_loss):.4f}')
 
-    torch.save(model, 'saved_models/' + args.name + str(args.n_gnn) + 'x' + str(args.n_hidden) + '_' + args.gsl_type + '_' + args.dataset + '.pt')
+    torch.save(model.state_dict(), 'saved_models/' + args.name + str(args.n_gnn) + 'x' + str(args.n_hidden) + '_' + args.gsl_type + '_' + args.dataset + '.pt')
 
 
 if __name__ == '__main__':

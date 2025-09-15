@@ -67,6 +67,8 @@ class GNN_TAM(nn.Module):
         self.bnorm1 = nn.ModuleList()
         self.conv2 = nn.ModuleList()
         self.bnorm2 = nn.ModuleList()
+        self.relu1 = nn.ModuleList()  # for GB
+        self.relu2 = nn.ModuleList()  # for GB
 
         for i in range(self.n_gnn):
             self.gsl.append(GSL(gsl_type, n_nodes,
@@ -75,6 +77,8 @@ class GNN_TAM(nn.Module):
             self.bnorm1.append(nn.BatchNorm1d(n_nodes))
             self.conv2.append(GCLayer(n_hidden, n_hidden))
             self.bnorm2.append(nn.BatchNorm1d(n_nodes))
+            self.relu1.append(nn.ReLU())
+            self.relu2.append(nn.ReLU())
 
         self.fc = nn.Linear(n_gnn*n_hidden, n_classes)
 
@@ -83,10 +87,10 @@ class GNN_TAM(nn.Module):
         for i in range(self.n_gnn):
             self.adj[i] = self.gsl[i](self.idx)
             self.adj[i] = self.adj[i] * self.z
-            self.h[i] = self.conv1[i](self.adj[i], X).relu()
+            self.h[i] = self.relu1[i](self.conv1[i](self.adj[i], X))
             self.h[i] = self.bnorm1[i](self.h[i])
             self.skip[i], _ = torch.min(self.h[i], dim=1)
-            self.h[i] = self.conv2[i](self.adj[i], self.h[i]).relu()
+            self.h[i] = self.relu2[i](self.conv2[i](self.adj[i], self.h[i]))
             self.h[i] = self.bnorm2[i](self.h[i])
             self.h[i], _ = torch.min(self.h[i], dim=1)
             self.h[i] = self.h[i] + self.skip[i]
@@ -104,10 +108,10 @@ class GNN_TAM(nn.Module):
             adj = self.adj[i] * self.z
             adj[sensor_idx] = 0
             adj[:, sensor_idx] = 0
-            self.h[i] = self.conv1[i](adj, X).relu()
+            self.h[i] = self.relu1[i](self.conv1[i](adj, X))
             self.h[i] = self.bnorm1[i](self.h[i])
             self.skip[i], _ = torch.min(self.h[i], dim=1)
-            self.h[i] = self.conv2[i](adj, self.h[i]).relu()
+            self.h[i] = self.relu2[i](self.conv2[i](adj, self.h[i]))
             self.h[i] = self.bnorm2[i](self.h[i])
             self.h[i], _ = torch.min(self.h[i], dim=1)
             self.h[i] = self.h[i] + self.skip[i]

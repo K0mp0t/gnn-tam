@@ -33,11 +33,12 @@ class Graph_Directed_A(nn.Module):
         self.e2 = nn.Embedding(n_nodes, window_size)
         self.l1 = nn.Linear(window_size, window_size)
         self.l2 = nn.Linear(window_size, window_size)
+        self.relu = nn.ReLU()
 
     def forward(self, idx):
         m1 = torch.tanh(self.alpha*self.l1(self.e1(idx)))
         m2 = torch.tanh(self.alpha*self.l2(self.e2(idx)))
-        adj = F.relu(torch.tanh(self.alpha*torch.mm(m1, m2.transpose(1, 0))))
+        adj = self.relu(torch.tanh(self.alpha*torch.mm(m1, m2.transpose(1, 0))))
         if self.k:
             mask = torch.zeros(idx.size(0), idx.size(0)).to(self.device)
             mask.fill_(float('0'))
